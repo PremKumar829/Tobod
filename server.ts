@@ -557,6 +557,19 @@ async function startServer() {
     }
   });
 
+  // Direct download full project source archive (.zip)
+  app.get('/api/project/export-zip', (req, res) => {
+    try {
+      const zipBuffer = execSync('git archive --format=zip -9 HEAD', { cwd: process.cwd() });
+      const filename = `telegram_group_manager_${new Date().toISOString().split('T')[0]}.zip`;
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(zipBuffer);
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to create zip archive: ' + err.message });
+    }
+  });
+
   // Direct download full project source archive (.tar.gz)
   app.get('/api/project/export-archive', (req, res) => {
     try {

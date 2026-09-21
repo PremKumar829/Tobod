@@ -80,20 +80,20 @@ export const DatabaseStorageTab: React.FC<DatabaseStorageTabProps> = ({ metrics 
 
   const handleDownloadArchive = () => {
     setDownloadingArchive(true);
-    window.location.href = '/api/project/export-archive';
+    window.location.href = '/api/project/export-zip';
     setTimeout(() => setDownloadingArchive(false), 2500);
   };
 
   const gitCommands = [
-    '# 1. Initialize git and configure main branch',
+    '# 1. Initialize git and commit',
     'git init',
     'git branch -M main',
     'git add .',
-    'git commit -m "Initial commit of Telegram Group Automator"',
+    'git commit -m "feat: Telegram Group Automator full project"',
     '',
-    '# 2. Add your GitHub repository link and push',
-    'git remote add origin https://github.com/<YOUR_GITHUB_USERNAME>/<YOUR_REPO_NAME>.git',
-    'git push -u origin main'
+    '# 2. Push to your repository (PremKumar829/Tobod)',
+    'git remote add origin https://github.com/PremKumar829/Tobod.git',
+    'git push -u origin main --force'
   ].join('\n');
 
   const handleCopyCommands = () => {
@@ -353,7 +353,7 @@ export const DatabaseStorageTab: React.FC<DatabaseStorageTabProps> = ({ metrics 
             className="flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md shadow-purple-900/20 transition-all disabled:opacity-60 shrink-0"
           >
             <Download className="w-4 h-4" />
-            <span>{downloadingArchive ? 'Packaging Code...' : 'Download Full Code (.tar.gz)'}</span>
+            <span>{downloadingArchive ? 'Packaging Code...' : 'Download Full Code (.ZIP)'}</span>
           </button>
         </div>
 
