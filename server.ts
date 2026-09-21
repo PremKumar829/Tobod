@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import { execSync } from 'child_process';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { storage, getIstDateString } from './server/storage.js';
@@ -553,6 +554,19 @@ async function startServer() {
       res.send(backupJson);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Direct download full project source archive (.tar.gz)
+  app.get('/api/project/export-archive', (req, res) => {
+    try {
+      const archiveBuffer = execSync('git archive --format=tar.gz HEAD', { cwd: process.cwd() });
+      const filename = `telegram_group_manager_src_${new Date().toISOString().split('T')[0]}.tar.gz`;
+      res.setHeader('Content-Type', 'application/gzip');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(archiveBuffer);
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to create source code archive: ' + err.message });
     }
   });
 

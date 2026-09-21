@@ -12,7 +12,12 @@ import {
   Calendar,
   Layers,
   ArrowDownCircle,
-  Activity
+  Activity,
+  GitBranch,
+  Terminal,
+  Copy,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { DashboardMetrics } from '../types';
 
@@ -45,6 +50,8 @@ export const DatabaseStorageTab: React.FC<DatabaseStorageTabProps> = ({ metrics 
   const [stats, setStats] = useState<DatabaseStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingArchive, setDownloadingArchive] = useState(false);
+  const [copiedCommands, setCopiedCommands] = useState(false);
 
   const fetchStats = async () => {
     setLoading(true);
@@ -69,6 +76,30 @@ export const DatabaseStorageTab: React.FC<DatabaseStorageTabProps> = ({ metrics 
     setDownloading(true);
     window.location.href = '/api/database/backup';
     setTimeout(() => setDownloading(false), 2000);
+  };
+
+  const handleDownloadArchive = () => {
+    setDownloadingArchive(true);
+    window.location.href = '/api/project/export-archive';
+    setTimeout(() => setDownloadingArchive(false), 2500);
+  };
+
+  const gitCommands = [
+    '# 1. Initialize git and configure main branch',
+    'git init',
+    'git branch -M main',
+    'git add .',
+    'git commit -m "Initial commit of Telegram Group Automator"',
+    '',
+    '# 2. Add your GitHub repository link and push',
+    'git remote add origin https://github.com/<YOUR_GITHUB_USERNAME>/<YOUR_REPO_NAME>.git',
+    'git push -u origin main'
+  ].join('\n');
+
+  const handleCopyCommands = () => {
+    navigator.clipboard.writeText(gitCommands);
+    setCopiedCommands(true);
+    setTimeout(() => setCopiedCommands(false), 2500);
   };
 
   return (
@@ -293,6 +324,85 @@ export const DatabaseStorageTab: React.FC<DatabaseStorageTabProps> = ({ metrics 
               When hosting on Render, Railway, or VPS, mount a persistent disk at <code className="text-cyan-300 bg-slate-950 px-1 py-0.5 rounded">/data</code> or set environment variable <code className="text-cyan-300 bg-slate-950 px-1 py-0.5 rounded">DATA_DIR=/var/data</code>. You can click "Export Database JSON" anytime to create an instant offline backup of all members, historical snapshots, and admin accounts.
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* GitHub Connection & Direct Source Code Export */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start space-x-3.5">
+            <div className="p-2.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-400 shrink-0">
+              <GitBranch className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                GitHub Connection & Source Code Export
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono font-semibold border border-purple-500/30">
+                  Ready to Push
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Troubleshooting Google AI Studio GitHub export and direct repository setup.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleDownloadArchive}
+            disabled={downloadingArchive}
+            className="flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md shadow-purple-900/20 transition-all disabled:opacity-60 shrink-0"
+          >
+            <Download className="w-4 h-4" />
+            <span>{downloadingArchive ? 'Packaging Code...' : 'Download Full Code (.tar.gz)'}</span>
+          </button>
+        </div>
+
+        {/* Troubleshooting Alert */}
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 space-y-2">
+          <div className="flex items-center space-x-2 text-amber-300 text-xs font-bold">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>Facing "Unable to connect with GitHub" in Google AI Studio?</span>
+          </div>
+          <ul className="text-xs text-slate-300 space-y-1.5 pl-6 list-disc">
+            <li>
+              <strong className="text-amber-200">Pop-up Blocker:</strong> Look at your browser address bar (URL bar). Click the blocked pop-up icon and select <strong className="text-amber-200">"Always allow pop-ups and redirects from ai.studio"</strong>.
+            </li>
+            <li>
+              <strong className="text-amber-200">Third-Party Cookies / Privacy Shield:</strong> If using Brave, Safari, or Chrome incognito, allow third-party cookies or temporarily pause shields so the GitHub OAuth handshake completes.
+            </li>
+            <li>
+              <strong className="text-amber-200">GitHub Organization Access:</strong> If creating under a GitHub organization, ensure OAuth app access is granted under your GitHub Account Settings &gt; Applications.
+            </li>
+          </ul>
+        </div>
+
+        {/* Manual Push Instructions */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <Terminal className="w-3.5 h-3.5 text-cyan-400" />
+              Manual Push to GitHub (Zero-Dependency Method)
+            </span>
+            <button
+              onClick={handleCopyCommands}
+              className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 transition"
+            >
+              {copiedCommands ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-300 font-medium">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy Commands</span>
+                </>
+              )}
+            </button>
+          </div>
+          <pre className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono text-cyan-300 overflow-x-auto leading-relaxed">
+            {gitCommands}
+          </pre>
         </div>
       </div>
     </div>
