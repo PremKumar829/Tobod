@@ -1,0 +1,6 @@
+{
+  "name": "Telegram Group Manager & Automator",
+  "description": "Telegram bot for group announcements, automated member management, persistent database engine, 12:00 AM IST daily reset history, scheduled open/close times, join request auto-approval, 3-tier admin controls (L1 Owner, L2 Analyst, L3 Moderator), and direct web member removal.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
