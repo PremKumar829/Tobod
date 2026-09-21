@@ -34,6 +34,40 @@ interface TelegramChatMemberUpdated {
   new_chat_member: { status: string; user: TelegramUser };
 }
 
+export interface TelegramInlineKeyboardButton {
+  text: string;
+  callback_data?: string;
+  url?: string;
+}
+
+export interface TelegramInlineKeyboardMarkup {
+  inline_keyboard: TelegramInlineKeyboardButton[][];
+}
+
+export interface TelegramKeyboardButton {
+  text: string;
+}
+
+export interface TelegramReplyKeyboardMarkup {
+  keyboard: TelegramKeyboardButton[][];
+  resize_keyboard?: boolean;
+  one_time_keyboard?: boolean;
+  is_persistent?: boolean;
+}
+
+interface TelegramCallbackQuery {
+  id: string;
+  from: TelegramUser;
+  message?: {
+    message_id: number;
+    from: TelegramUser;
+    chat: TelegramChat;
+    text?: string;
+    date: number;
+  };
+  data?: string;
+}
+
 interface TelegramUpdate {
   update_id: number;
   message?: {
@@ -45,6 +79,7 @@ interface TelegramUpdate {
   };
   chat_join_request?: TelegramChatJoinRequest;
   chat_member?: TelegramChatMemberUpdated;
+  callback_query?: TelegramCallbackQuery;
 }
 
 export class TelegramService {
@@ -103,7 +138,7 @@ export class TelegramService {
   public async setWebhook(url: string): Promise<{ ok: boolean; description?: string }> {
     return this.callTelegramApi('setWebhook', {
       url,
-      allowed_updates: ['chat_join_request', 'chat_member', 'message'],
+      allowed_updates: ['chat_join_request', 'chat_member', 'message', 'callback_query'],
     });
   }
 
@@ -244,14 +279,60 @@ export class TelegramService {
     };
   }
 
-  public async sendMessage(chatId: string | number, text: string, options: { parse_mode?: 'Markdown' | 'HTML'; disable_notification?: boolean } = {}) {
+  public async sendMessage(
+    chatId: string | number,
+    text: string,
+    options: {
+      parse_mode?: 'Markdown' | 'HTML';
+      disable_notification?: boolean;
+      reply_markup?: TelegramInlineKeyboardMarkup | TelegramReplyKeyboardMarkup;
+    } = {}
+  ) {
     const payload: Record<string, unknown> = {
       chat_id: chatId,
       text,
       parse_mode: options.parse_mode || 'Markdown',
       disable_notification: !!options.disable_notification,
     };
+    if (options.reply_markup) {
+      payload.reply_markup = options.reply_markup;
+    }
     return this.callTelegramApi('sendMessage', payload);
+  }
+
+  public async editMessageText(
+    chatId: string | number,
+    messageId: number,
+    text: string,
+    options: {
+      parse_mode?: 'Markdown' | 'HTML';
+      reply_markup?: TelegramInlineKeyboardMarkup;
+    } = {}
+  ) {
+    const payload: Record<string, unknown> = {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: options.parse_mode || 'Markdown',
+    };
+    if (options.reply_markup) {
+      payload.reply_markup = options.reply_markup;
+    }
+    return this.callTelegramApi('editMessageText', payload);
+  }
+
+  public async answerCallbackQuery(
+    callbackQueryId: string,
+    options: {
+      text?: string;
+      show_alert?: boolean;
+    } = {}
+  ) {
+    return this.callTelegramApi('answerCallbackQuery', {
+      callback_query_id: callbackQueryId,
+      text: options.text || '',
+      show_alert: !!options.show_alert,
+    });
   }
 
   public async pinChatMessage(chatId: string | number, messageId: number) {
@@ -851,7 +932,7 @@ export class TelegramService {
       }
 
       // --- AUTHORIZED COMMAND HANDLERS (EXCLUSIVELY FOR OWNER & ADMINS) ---
-      if (command === '/start' || command === '/help') {
+      if (command === '/start' || command === '/help' || command === '/menu') {
         const metrics = storage.getMetrics();
         const isL2 = auth.level === 2;
 
@@ -863,15 +944,7 @@ export class TelegramService {
           `• *User ID:* \`${fromId}\``,
           `• *Access Mode:* 📈 *Analytics & Reports Only*`,
           ``,
-          `📌 *Allowed Analytics Commands:*`,
-          `• \`/today\` (or \`/aaj\`) - Today's joined and exited members (IST)`,
-          `• \`/yesterday\` (or \`/kal\`) - Yesterday's archived join/exit count`,
-          `• \`/stats\` - Group growth, rejoins & active member counter`,
-          `• \`/status\` - Live group operating status (Open/Closed)`,
-          `• \`/myid\` - View your account identity & permissions`,
-          `• \`/ping\` - Check bot responsiveness`,
-          ``,
-          `🔒 _Administrative actions (/open, /close, /broadcast, /kick) are restricted to Level 1 Super Admins._`,
+          `👇 *Neeche diye gaye buttons se direct command run karein:*`,
         ].join('\n') : [
           `🤖 *Admin & Owner Command Center*`,
           `━━━━━━━━━━━━━━━━━━━━━━`,
@@ -882,24 +955,262 @@ export class TelegramService {
           `• *Pending Join Requests:* *${metrics.pendingRequestsCount}*`,
           `• *Today Joined / Exited:* *${metrics.todayJoiningCount}* / *${metrics.todayExitingCount}* (IST)`,
           ``,
-          `📌 *Available Commands:*`,
-          `• \`/today\` - Today's joined & exited members (Reset 12:00 AM IST)`,
-          `• \`/yesterday\` - Yesterday's archived join & exit record`,
-          `• \`/stats\` - Comprehensive group analytics & growth summary`,
-          `• \`/status\` - Live group status, operating hours & counts`,
-          `• \`/pending\` - Queued join requests awaiting approval`,
-          `• \`/open\` - Manually open group & approve all pending requests`,
-          `• \`/close\` - Close group & queue new requests`,
-          `• \`/kick <id/user> [reason]\` - Remove member from Telegram group`,
-          `• \`/ban <id/user> [reason]\` - Permanently ban member from group`,
-          `• \`/broadcast <text>\` - Send announcement to the group`,
-          `• \`/myid\` - View your verified Telegram ID & permissions`,
-          `• \`/ping\` - Check bot responsiveness`,
-          ``,
-          `👑 _You have full Level 1 administrative control._`,
+          `👇 *Buttons par click karke control karein:*`,
         ].join('\n');
 
-        await this.sendMessage(chatId, helpMsg, { parse_mode: 'Markdown' });
+        const inlineMarkup: TelegramInlineKeyboardMarkup = isL2 ? {
+          inline_keyboard: [
+            [
+              { text: '📅 Aaj (Today)', callback_data: 'cmd_today' },
+              { text: '⏮️ Kal (Yesterday)', callback_data: 'cmd_yesterday' }
+            ],
+            [
+              { text: '📊 Live Status', callback_data: 'cmd_status' },
+              { text: '📈 Growth Stats', callback_data: 'cmd_stats' }
+            ],
+            [
+              { text: '🆔 My ID & Perms', callback_data: 'cmd_myid' },
+              { text: '🏓 Ping Bot', callback_data: 'cmd_ping' }
+            ]
+          ]
+        } : {
+          inline_keyboard: [
+            [
+              { text: '🟢 Open Group', callback_data: 'cmd_open' },
+              { text: '🔴 Close Group', callback_data: 'cmd_close' }
+            ],
+            [
+              { text: '📅 Today Stats', callback_data: 'cmd_today' },
+              { text: '⏮️ Yesterday Stats', callback_data: 'cmd_yesterday' }
+            ],
+            [
+              { text: '📊 Group Status', callback_data: 'cmd_status' },
+              { text: '⏳ Pending Requests', callback_data: 'cmd_pending' }
+            ],
+            [
+              { text: '👥 Bot Admins List', callback_data: 'cmd_admins' },
+              { text: '➕ Add Bot Admin', callback_data: 'cmd_addadmin_info' }
+            ],
+            [
+              { text: '📢 Broadcast Guide', callback_data: 'cmd_broadcast_guide' },
+              { text: '🆔 My ID Info', callback_data: 'cmd_myid' }
+            ],
+            [
+              { text: '🔄 Refresh Menu', callback_data: 'cmd_refresh_menu' }
+            ]
+          ]
+        };
+
+        const replyKeyboard: TelegramReplyKeyboardMarkup = isL2 ? {
+          keyboard: [
+            [{ text: '/today' }, { text: '/yesterday' }],
+            [{ text: '/status' }, { text: '/stats' }],
+            [{ text: '/myid' }, { text: '/ping' }]
+          ],
+          resize_keyboard: true,
+          is_persistent: true
+        } : {
+          keyboard: [
+            [{ text: '/today' }, { text: '/yesterday' }],
+            [{ text: '/status' }, { text: '/pending' }],
+            [{ text: '/open' }, { text: '/close' }],
+            [{ text: '/admins' }, { text: '/myid' }]
+          ],
+          resize_keyboard: true,
+          is_persistent: true
+        };
+
+        // Send with inline keyboard buttons and update persistent reply keyboard
+        await this.sendMessage(chatId, helpMsg, {
+          parse_mode: 'Markdown',
+          reply_markup: inlineMarkup,
+        });
+
+        if (isPrivate) {
+          await this.sendMessage(chatId, `⌨️ Quick Keyboard Activated. Aap neeche diye gaye keyboard buttons se bhi command bhej sakte hain.`, {
+            reply_markup: replyKeyboard
+          });
+        }
+      } else if (command === '/admins' || command === '/adminlist') {
+        const admins = storage.getAdmins();
+        const l1Admins = admins.filter(a => a.role === 'level_1_owner');
+        const l2Admins = admins.filter(a => a.role === 'level_2_admin');
+
+        const adminText = [
+          `👥 *Registered Bot Administrators & Roles*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `👑 *Level 1 Super Admins / Owners (${l1Admins.length}):*`,
+          l1Admins.map(a => `• *${a.name}* (@${a.username}) | Telegram ID: \`${a.telegramUserId || 'Not linked'}\``).join('\n') || '• None',
+          ``,
+          `📊 *Level 2 Analytics Admins (${l2Admins.length}):*`,
+          l2Admins.map(a => `• *${a.name}* (@${a.username}) | Telegram ID: \`${a.telegramUserId || 'Not linked'}\``).join('\n') || '• None',
+          ``,
+          `💡 *Naya Admin Add Karne Ka Tarika:*`,
+          `\`/addadmin <telegramId> <Name> <level1|level2>\``,
+          `_Udaharan:_ \`/addadmin 123456789 Rahul level1\``,
+          ``,
+          `🗑️ *Admin Remove Karne Ka Tarika:*`,
+          `\`/deladmin <telegramId>\``
+        ].join('\n');
+
+        const adminsKeyboard: TelegramInlineKeyboardMarkup = {
+          inline_keyboard: [
+            [
+              { text: '➕ Add Admin Guide', callback_data: 'cmd_addadmin_info' },
+              { text: '🔄 Refresh List', callback_data: 'cmd_admins' }
+            ],
+            [
+              { text: '🔙 Back to Menu', callback_data: 'cmd_refresh_menu' }
+            ]
+          ]
+        };
+
+        await this.sendMessage(chatId, adminText, { parse_mode: 'Markdown', reply_markup: adminsKeyboard });
+      } else if (command === '/addadmin') {
+        if (auth.level === 2) {
+          await this.sendMessage(
+            chatId,
+            `⛔ *Access Denied:* Only Level 1 Super Admins & Owners can add new bot administrators.`,
+            { parse_mode: 'Markdown' }
+          );
+          return;
+        }
+
+        const args = parts.slice(1);
+        if (args.length < 2) {
+          const usageMsg = [
+            `➕ *Add Admin Command Usage:*`,
+            `━━━━━━━━━━━━━━━━━━━━━━`,
+            `Format:`,
+            `\`/addadmin <TelegramID> <Name> [level1|level2]\``,
+            ``,
+            `*Parameters:*`,
+            `• \`TelegramID\`: User ka numeric Telegram ID (jaise \`987654321\`)`,
+            `• \`Name\`: Admin ka display name (jaise \`Amit\`)`,
+            `• \`level1\` (Super Admin - Full Control) ya \`level2\` (Analytics Only, Default)`,
+            ``,
+            `*Udaharan (Examples):*`,
+            `• \`/addadmin 987654321 Amit level1\` (Full Access)`,
+            `• \`/addadmin 987654321 Rohan level2\` (Report Access)`,
+            ``,
+            `_Note: User apna Telegram ID /myid command bhej kar jaan sakta hai._`
+          ].join('\n');
+          await this.sendMessage(chatId, usageMsg, { parse_mode: 'Markdown' });
+          return;
+        }
+
+        const targetTgId = args[0].replace(/[^0-9]/g, '');
+        const targetName = args[1];
+        const rawRole = (args[2] || 'level2').toLowerCase();
+        const role: AdminRole = (rawRole === 'level1' || rawRole === 'l1' || rawRole === 'owner')
+          ? 'level_1_owner'
+          : 'level_2_admin';
+
+        if (!targetTgId) {
+          await this.sendMessage(chatId, `❌ *Invalid Telegram ID!* Please provide a valid numeric ID.\nExample: \`/addadmin 987654321 Amit level1\``, { parse_mode: 'Markdown' });
+          return;
+        }
+
+        // Check if already an admin
+        const existingAdmins = storage.getAdmins();
+        const existing = existingAdmins.find(a => a.telegramUserId === targetTgId);
+
+        let savedAdmin;
+        if (existing) {
+          savedAdmin = storage.saveAdmin({
+            id: existing.id,
+            name: targetName || existing.name,
+            username: `tg_${targetTgId}`,
+            pin: existing.pin || '1234',
+            role,
+            telegramUserId: targetTgId,
+          });
+        } else {
+          savedAdmin = storage.saveAdmin({
+            name: targetName,
+            username: `tg_${targetTgId}`,
+            pin: '1234',
+            role,
+            telegramUserId: targetTgId,
+          });
+        }
+
+        // Clear cached authorities so permission updates instantly
+        this.adminCache.delete(targetTgId);
+
+        // Also if level1, ensure ownerChatId or linked admins can reach
+        storage.addLog({
+          timestamp: new Date().toISOString(),
+          type: 'admin_action',
+          action: 'Bot Admin Added via Telegram',
+          description: `${auth.roleTitle} ${senderName} added ${targetName} (Telegram ID: ${targetTgId}) as ${role === 'level_1_owner' ? 'Level 1 Super Admin' : 'Level 2 Analytics Admin'}.`,
+          actor: senderName,
+          success: true,
+          metadata: { targetTgId, targetName, role }
+        });
+
+        const successMsg = [
+          `✅ *Admin Added Successfully!*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `• *Name:* ${targetName}`,
+          `• *Telegram ID:* \`${targetTgId}\``,
+          `• *Assigned Role:* ${role === 'level_1_owner' ? '👑 Level 1 Super Admin (Full Control)' : '📊 Level 2 Admin (Analytics Only)'}`,
+          `• *Added By:* ${senderName} (${auth.roleTitle})`,
+          ``,
+          `🎉 *Naye Admin ke liye:* Wo bot ko \`/start\` bhej kar control buttons access kar sakte hain!`
+        ].join('\n');
+
+        await this.sendMessage(chatId, successMsg, {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '👥 View All Admins', callback_data: 'cmd_admins' }],
+              [{ text: '🔙 Back to Menu', callback_data: 'cmd_refresh_menu' }]
+            ]
+          }
+        });
+      } else if (command === '/deladmin' || command === '/removeadmin') {
+        if (auth.level === 2) {
+          await this.sendMessage(chatId, `⛔ *Access Denied:* Only Level 1 Super Admins can remove admins.`, { parse_mode: 'Markdown' });
+          return;
+        }
+
+        const targetTgId = (parts[1] || '').replace(/[^0-9]/g, '');
+        if (!targetTgId) {
+          await this.sendMessage(chatId, `🗑️ *Delete Admin Usage:*\n\`/deladmin <TelegramID>\`\n\n_Example:_ \`/deladmin 987654321\``, { parse_mode: 'Markdown' });
+          return;
+        }
+
+        const existingAdmins = storage.getAdmins();
+        const toDelete = existingAdmins.find(a => a.telegramUserId === targetTgId || a.id === parts[1]);
+
+        if (!toDelete) {
+          await this.sendMessage(chatId, `❌ No admin found with Telegram ID \`${targetTgId}\`. Check \`/admins\` list.`, { parse_mode: 'Markdown' });
+          return;
+        }
+
+        if (toDelete.telegramUserId === fromId) {
+          await this.sendMessage(chatId, `❌ You cannot delete your own admin account.`, { parse_mode: 'Markdown' });
+          return;
+        }
+
+        const removed = storage.deleteAdmin(toDelete.id);
+        this.adminCache.delete(targetTgId);
+
+        if (removed) {
+          storage.addLog({
+            timestamp: new Date().toISOString(),
+            type: 'admin_action',
+            action: 'Bot Admin Removed via Telegram',
+            description: `${auth.roleTitle} ${senderName} removed ${toDelete.name} (Telegram ID: ${targetTgId}) from admins.`,
+            actor: senderName,
+            success: true,
+          });
+
+          await this.sendMessage(chatId, `✅ *Admin Removed Successfully:*\n*${toDelete.name}* (\`${targetTgId}\`) is no longer a bot administrator.`, { parse_mode: 'Markdown' });
+        } else {
+          await this.sendMessage(chatId, `⚠️ Cannot remove primary Level 1 Owner.`, { parse_mode: 'Markdown' });
+        }
       } else if (command === '/myid' || command === '/id') {
         const idMsg = [
           `🆔 *Your Telegram Identity & Authority*`,
@@ -1251,9 +1562,476 @@ export class TelegramService {
           `👋 Hello *${senderName}* (${auth.roleTitle})!`,
           `I received your message.`,
           ``,
-          `Send \`/help\` or \`/status\` to view the list of administrative commands.`,
+          `Send \`/help\` or click buttons below to view administrative controls:`,
         ].join('\n');
-        await this.sendMessage(chatId, fallbackMsg, { parse_mode: 'Markdown' });
+        await this.sendMessage(chatId, fallbackMsg, {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '📊 Live Status', callback_data: 'cmd_status' }, { text: '📅 Today Stats', callback_data: 'cmd_today' }],
+              [{ text: '👥 Bot Admins', callback_data: 'cmd_admins' }, { text: '🔄 Open Menu', callback_data: 'cmd_refresh_menu' }]
+            ]
+          }
+        });
+      }
+    }
+
+    // 4. Callback Query handling (Interactive button clicks)
+    if (update.callback_query) {
+      const cb = update.callback_query;
+      const callbackId = cb.id;
+      const data = cb.data || '';
+      const fromUser = cb.from;
+      const fromId = String(fromUser.id);
+      const chatId = cb.message?.chat.id || fromUser.id;
+      const messageId = cb.message?.message_id;
+      const senderName = `${fromUser.first_name || ''} ${fromUser.last_name || ''}`.trim() || 'User';
+
+      // Verify authority
+      const auth = await this.verifyUserAuthority(fromId, fromUser, chatId);
+      if (!auth.isAuthorized) {
+        await this.answerCallbackQuery(callbackId, {
+          text: '⛔ Access Denied: Bot buttons are reserved exclusively for Admins & Owner.',
+          show_alert: true
+        });
+        return;
+      }
+
+      // Acknowledge callback immediately
+      await this.answerCallbackQuery(callbackId);
+
+      const config = storage.getConfig();
+      const metrics = storage.getMetrics();
+      const isL2 = auth.level === 2;
+
+      // Handle individual button callbacks
+      if (data === 'cmd_today') {
+        const netGrowth = metrics.todayJoiningCount - metrics.todayExitingCount;
+        const netSign = netGrowth >= 0 ? `+${netGrowth}` : `${netGrowth}`;
+        const todayMsg = [
+          `📅 *Today's Group Analytics (IST)*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `• *Date:* \`${metrics.todayDateIst}\``,
+          `• *Reset Time:* \`12:00 AM Midnight IST\``,
+          ``,
+          `📈 *Activity Summary:*`,
+          `• 🟢 *Members Joined:* *${metrics.todayJoiningCount}*`,
+          `• 🔴 *Members Exited:* *${metrics.todayExitingCount}*`,
+          `• 📊 *Net Growth:* *${netSign}* members`,
+          `• 👥 *Total Active:* *${metrics.totalActiveMembers}*`,
+          `• ⏳ *Pending Queue:* *${metrics.pendingRequestsCount}*`,
+        ].join('\n');
+
+        const keyboard: TelegramInlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '🔄 Refresh Today', callback_data: 'cmd_today' }, { text: '⏮️ Yesterday', callback_data: 'cmd_yesterday' }],
+            [{ text: '🔙 Back to Menu', callback_data: 'cmd_refresh_menu' }]
+          ]
+        };
+
+        if (messageId) {
+          await this.editMessageText(chatId, messageId, todayMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        } else {
+          await this.sendMessage(chatId, todayMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        }
+      } else if (data === 'cmd_yesterday') {
+        const joined = metrics.yesterdayJoiningCount;
+        const exited = metrics.yesterdayExitingCount;
+        const netGrowth = joined - exited;
+        const netSign = netGrowth >= 0 ? `+${netGrowth}` : `${netGrowth}`;
+        const yesterdayMsg = [
+          `⏮️ *Yesterday's Archived Analytics (IST)*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `• *Archived Date:* \`${metrics.yesterdayDateIst}\``,
+          `• *Snapshot:* Recorded at 12:00 AM IST`,
+          ``,
+          `📊 *Yesterday's Summary:*`,
+          `• 🟢 *Members Joined:* *${joined}*`,
+          `• 🔴 *Members Exited:* *${exited}*`,
+          `• 📈 *Net Day Growth:* *${netSign}* members`,
+          `• 🆕 *New First-Time:* *${metrics.yesterdayNewMembersCount}*`,
+          `• 🔁 *Rejoined Members:* *${metrics.yesterdayRejoinedCount}*`,
+        ].join('\n');
+
+        const keyboard: TelegramInlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '📅 Today Stats', callback_data: 'cmd_today' }, { text: '📊 Live Status', callback_data: 'cmd_status' }],
+            [{ text: '🔙 Back to Menu', callback_data: 'cmd_refresh_menu' }]
+          ]
+        };
+
+        if (messageId) {
+          await this.editMessageText(chatId, messageId, yesterdayMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        } else {
+          await this.sendMessage(chatId, yesterdayMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        }
+      } else if (data === 'cmd_status') {
+        const statusMsg = [
+          `📊 *Group Automation Live Status*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `• *Group State:* ${metrics.currentGroupStatus === 'open' ? '🟢 OPEN' : '🔴 CLOSED'}`,
+          `• *Target Group:* \`${config.groupTitle || config.groupId}\``,
+          `• *Schedule:* ${config.scheduleEnabled ? `Enabled (${config.openTime} - ${config.closeTime} ${config.timezone})` : 'Disabled'}`,
+          `• *Pending Join Requests:* *${metrics.pendingRequestsCount}*`,
+          `• *Total Active Members:* *${metrics.totalActiveMembers}*`,
+          `• *Today Joined (IST):* *${metrics.todayJoiningCount}* | *Exited:* *${metrics.todayExitingCount}*`,
+          `• *Yesterday Joined:* *${metrics.yesterdayJoiningCount}* | *Exited:* *${metrics.yesterdayExitingCount}*`,
+          `• *Auto-Approve Policy:* \`${config.autoApproveMode}\``,
+        ].join('\n');
+
+        const keyboard: TelegramInlineKeyboardMarkup = {
+          inline_keyboard: [
+            isL2 ? [
+              { text: '📅 Today Stats', callback_data: 'cmd_today' },
+              { text: '📈 Growth Stats', callback_data: 'cmd_stats' }
+            ] : [
+              { text: metrics.currentGroupStatus === 'open' ? '🔴 Close Group' : '🟢 Open Group', callback_data: metrics.currentGroupStatus === 'open' ? 'cmd_close' : 'cmd_open' },
+              { text: '⏳ Pending Queue', callback_data: 'cmd_pending' }
+            ],
+            [{ text: '🔄 Refresh Status', callback_data: 'cmd_status' }, { text: '🔙 Menu', callback_data: 'cmd_refresh_menu' }]
+          ]
+        };
+
+        if (messageId) {
+          await this.editMessageText(chatId, messageId, statusMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        } else {
+          await this.sendMessage(chatId, statusMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        }
+      } else if (data === 'cmd_stats') {
+        const statsMsg = [
+          `📈 *Group Growth & Analytics Overview*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `• *Group:* \`${config.groupTitle || config.groupId}\``,
+          `• *Active Members:* *${metrics.totalActiveMembers}*`,
+          `• *Pending Queue:* *${metrics.pendingRequestsCount}*`,
+          ``,
+          `📊 *Breakdown (IST):*`,
+          `• 🟢 *Today Joined:* *${metrics.todayJoiningCount}*`,
+          `• 🔴 *Today Exited:* *${metrics.todayExitingCount}*`,
+          `• 🟢 *Yesterday Joined:* *${metrics.yesterdayJoiningCount}*`,
+          `• 🔴 *Yesterday Exited:* *${metrics.yesterdayExitingCount}*`,
+          `• 🔁 *Rejoined Members:* *${metrics.uniqueRejoinedCount}*`,
+          `• 👥 *Total Recorded in DB:* *${metrics.totalHistoricalMembers}*`,
+        ].join('\n');
+
+        const keyboard: TelegramInlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '📅 Today Stats', callback_data: 'cmd_today' }, { text: '📊 Live Status', callback_data: 'cmd_status' }],
+            [{ text: '🔙 Back to Menu', callback_data: 'cmd_refresh_menu' }]
+          ]
+        };
+
+        if (messageId) {
+          await this.editMessageText(chatId, messageId, statsMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        } else {
+          await this.sendMessage(chatId, statsMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        }
+      } else if (data === 'cmd_open') {
+        if (auth.level === 2) {
+          await this.answerCallbackQuery(callbackId, {
+            text: '⛔ Level 2 Admin only has Analytics access. Level 1 Super Admin required.',
+            show_alert: true
+          });
+          return;
+        }
+
+        storage.updateConfig({ currentGroupStatus: 'open', manualOverride: true });
+        const approved = storage.approveAllPendingRequests(`Button click by ${senderName}`);
+
+        for (const req of approved) {
+          if (config.botToken && config.groupId) {
+            try {
+              await this.approveJoinRequest(config.groupId, req.telegramId);
+            } catch (e) {
+              console.error('Failed approving pending user:', req.telegramId, e);
+            }
+          }
+        }
+
+        if (config.openedNoticeMessage && config.botToken && config.groupId) {
+          await this.sendMessage(config.groupId, config.openedNoticeMessage);
+        }
+
+        storage.addLog({
+          timestamp: new Date().toISOString(),
+          type: 'admin_action',
+          action: 'Group Opened via Button',
+          description: `Group manually opened via button by ${auth.roleTitle} ${senderName} (@${fromUser.username || fromId}). Approved ${approved.length} pending request(s).`,
+          actor: senderName,
+          success: true,
+          metadata: { approvedCount: approved.length }
+        });
+
+        const openResultMsg = [
+          `🟢 *Group Opened Successfully!*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `• *New Status:* 🟢 OPEN`,
+          `• *Approved Applicants:* *${approved.length}* members approved`,
+          `• *Executed By:* ${senderName} (${auth.roleTitle})`,
+          ``,
+          `New join requests will now be auto-approved directly.`
+        ].join('\n');
+
+        const keyboard: TelegramInlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '🔴 Close Group', callback_data: 'cmd_close' }, { text: '📊 Status', callback_data: 'cmd_status' }],
+            [{ text: '🔙 Back to Menu', callback_data: 'cmd_refresh_menu' }]
+          ]
+        };
+
+        if (messageId) {
+          await this.editMessageText(chatId, messageId, openResultMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        } else {
+          await this.sendMessage(chatId, openResultMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        }
+      } else if (data === 'cmd_close') {
+        if (auth.level === 2) {
+          await this.answerCallbackQuery(callbackId, {
+            text: '⛔ Level 2 Admin only has Analytics access. Level 1 Super Admin required.',
+            show_alert: true
+          });
+          return;
+        }
+
+        storage.updateConfig({ currentGroupStatus: 'closed' });
+        storage.addLog({
+          timestamp: new Date().toISOString(),
+          type: 'admin_action',
+          action: 'Group Closed via Button',
+          description: `Group manually closed via button by ${auth.roleTitle} ${senderName} (@${fromUser.username || fromId}).`,
+          actor: senderName,
+          success: true
+        });
+
+        const closeResultMsg = [
+          `🔴 *Group Closed Successfully!*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `• *New Status:* 🔴 CLOSED`,
+          `• *Policy:* New applicants will be queued in pending approval list.`,
+          `• *Executed By:* ${senderName} (${auth.roleTitle})`,
+        ].join('\n');
+
+        const keyboard: TelegramInlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '🟢 Open Group', callback_data: 'cmd_open' }, { text: '⏳ Pending Requests', callback_data: 'cmd_pending' }],
+            [{ text: '🔙 Back to Menu', callback_data: 'cmd_refresh_menu' }]
+          ]
+        };
+
+        if (messageId) {
+          await this.editMessageText(chatId, messageId, closeResultMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        } else {
+          await this.sendMessage(chatId, closeResultMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        }
+      } else if (data === 'cmd_pending') {
+        const pending = storage.getJoinRequests().filter(r => r.status === 'pending');
+        const pendingMsg = pending.length === 0
+          ? `✅ *Pending Queue Empty*\n\nAbhi koi bhi pending request nahi hai. Sabhi members approve ho chuke hain.`
+          : `⏳ *Queue mein ${pending.length} pending request(s) hain:*\n` +
+            pending.slice(0, 8).map((p, i) => `${i + 1}. *${p.firstName} ${p.lastName || ''}* (\`${p.telegramId}\`) - ${p.isRejoin ? '🔁 Rejoin' : '🆕 New'}`).join('\n') +
+            (pending.length > 8 ? `\n...and ${pending.length - 8} more in queue.` : '') +
+            `\n\n_Inhe approve karne ke liye 🟢 Open Group button dabayein._`;
+
+        const keyboard: TelegramInlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '🟢 Open & Approve All', callback_data: 'cmd_open' }, { text: '🔄 Refresh Queue', callback_data: 'cmd_pending' }],
+            [{ text: '🔙 Back to Menu', callback_data: 'cmd_refresh_menu' }]
+          ]
+        };
+
+        if (messageId) {
+          await this.editMessageText(chatId, messageId, pendingMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        } else {
+          await this.sendMessage(chatId, pendingMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        }
+      } else if (data === 'cmd_admins') {
+        const admins = storage.getAdmins();
+        const l1Admins = admins.filter(a => a.role === 'level_1_owner');
+        const l2Admins = admins.filter(a => a.role === 'level_2_admin');
+
+        const adminText = [
+          `👥 *Registered Bot Administrators*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `👑 *Level 1 Super Admins / Owners (${l1Admins.length}):*`,
+          l1Admins.map(a => `• *${a.name}* | ID: \`${a.telegramUserId || 'Not linked'}\``).join('\n') || '• None',
+          ``,
+          `📊 *Level 2 Analytics Admins (${l2Admins.length}):*`,
+          l2Admins.map(a => `• *${a.name}* | ID: \`${a.telegramUserId || 'Not linked'}\``).join('\n') || '• None',
+          ``,
+          `💡 *Naya Admin Add Karne ke liye:*`,
+          `Neeche *➕ Add Admin Guide* button dabayein ya command bhein:`,
+          `\`/addadmin <telegramId> <Name> <level1|level2>\``
+        ].join('\n');
+
+        const keyboard: TelegramInlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '➕ Add Admin Guide', callback_data: 'cmd_addadmin_info' }, { text: '🔄 Refresh List', callback_data: 'cmd_admins' }],
+            [{ text: '🔙 Back to Menu', callback_data: 'cmd_refresh_menu' }]
+          ]
+        };
+
+        if (messageId) {
+          await this.editMessageText(chatId, messageId, adminText, { parse_mode: 'Markdown', reply_markup: keyboard });
+        } else {
+          await this.sendMessage(chatId, adminText, { parse_mode: 'Markdown', reply_markup: keyboard });
+        }
+      } else if (data === 'cmd_addadmin_info') {
+        const addInfo = [
+          `➕ *Bot Admin Kaise Add Karein:*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `Admin add karne ke liye chat mein ye command likh kar send karein:`,
+          ``,
+          `👉 \`/addadmin <TelegramID> <Name> <Role>\``,
+          ``,
+          `*Parameters Explanation:*`,
+          `• \`<TelegramID>\`: User ka Telegram numeric user ID. (User apna ID bot ko \`/myid\` send karke dekh sakta hai)`,
+          `• \`<Name>\`: Admin ka naam`,
+          `• \`<Role>\`: \`level1\` (Full Control) ya \`level2\` (Only Analytics)`,
+          ``,
+          `*Examples:*`,
+          `• \`/addadmin 987654321 Rahul level1\``,
+          `• \`/addadmin 987654321 Priya level2\``,
+          ``,
+          `🗑️ *Admin Remove Karne ke liye:*`,
+          `• \`/deladmin 987654321\``
+        ].join('\n');
+
+        const keyboard: TelegramInlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '👥 View Admins', callback_data: 'cmd_admins' }],
+            [{ text: '🔙 Back to Menu', callback_data: 'cmd_refresh_menu' }]
+          ]
+        };
+
+        if (messageId) {
+          await this.editMessageText(chatId, messageId, addInfo, { parse_mode: 'Markdown', reply_markup: keyboard });
+        } else {
+          await this.sendMessage(chatId, addInfo, { parse_mode: 'Markdown', reply_markup: keyboard });
+        }
+      } else if (data === 'cmd_broadcast_guide') {
+        const bcastGuide = [
+          `📢 *Broadcast Announcement Guide*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `Group mein announcement bhejne ke liye ye command use karein:`,
+          ``,
+          `👉 \`/broadcast Aapka sandesh yahan likhein\``,
+          ``,
+          `*Example:*`,
+          `\`/broadcast Namaste sabhi members! Aaj raat 9 baje important update hai.\``,
+          ``,
+          `_Ye message seedhe target Telegram group mein publish ho jayega._`
+        ].join('\n');
+
+        const keyboard: TelegramInlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '📊 Status Check', callback_data: 'cmd_status' }],
+            [{ text: '🔙 Back to Menu', callback_data: 'cmd_refresh_menu' }]
+          ]
+        };
+
+        if (messageId) {
+          await this.editMessageText(chatId, messageId, bcastGuide, { parse_mode: 'Markdown', reply_markup: keyboard });
+        } else {
+          await this.sendMessage(chatId, bcastGuide, { parse_mode: 'Markdown', reply_markup: keyboard });
+        }
+      } else if (data === 'cmd_myid') {
+        const myIdMsg = [
+          `🆔 *Your Telegram Identity & Authority*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `• *Name:* ${senderName}`,
+          `• *User ID:* \`${fromId}\``,
+          `• *Username:* ${fromUser.username ? '@' + fromUser.username : 'No username set'}`,
+          `• *Authority Level:* ${auth.roleTitle}`,
+          `• *Access:* ✅ Verified Authorized Admin`,
+        ].join('\n');
+
+        const keyboard: TelegramInlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '🔄 Refresh Status', callback_data: 'cmd_status' }],
+            [{ text: '🔙 Back to Menu', callback_data: 'cmd_refresh_menu' }]
+          ]
+        };
+
+        if (messageId) {
+          await this.editMessageText(chatId, messageId, myIdMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        } else {
+          await this.sendMessage(chatId, myIdMsg, { parse_mode: 'Markdown', reply_markup: keyboard });
+        }
+      } else if (data === 'cmd_ping') {
+        await this.answerCallbackQuery(callbackId, {
+          text: `🏓 Pong! Bot active hai aur 24/7 run ho raha hai.`,
+          show_alert: true
+        });
+      } else if (data === 'cmd_refresh_menu') {
+        const menuMsg = isL2 ? [
+          `📊 *Level 2 Analyst Command Center*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `👋 Welcome *${senderName}*!`,
+          `• *Role:* ${auth.roleTitle}`,
+          `• *User ID:* \`${fromId}\``,
+          ``,
+          `👇 *Neeche diye gaye buttons se command run karein:*`,
+        ].join('\n') : [
+          `🤖 *Admin & Owner Command Center*`,
+          `━━━━━━━━━━━━━━━━━━━━━━`,
+          `👋 Welcome *${senderName}*!`,
+          `• *Verified Role:* ${auth.roleTitle}`,
+          `• *User ID:* \`${fromId}\``,
+          `• *Group Status:* ${config.currentGroupStatus === 'open' ? '🟢 OPEN' : '🔴 CLOSED'}`,
+          `• *Pending Queue:* *${metrics.pendingRequestsCount}*`,
+          `• *Today Joined / Exited:* *${metrics.todayJoiningCount}* / *${metrics.todayExitingCount}*`,
+          ``,
+          `👇 *Buttons par click karke control karein:*`,
+        ].join('\n');
+
+        const inlineMarkup: TelegramInlineKeyboardMarkup = isL2 ? {
+          inline_keyboard: [
+            [
+              { text: '📅 Aaj (Today)', callback_data: 'cmd_today' },
+              { text: '⏮️ Kal (Yesterday)', callback_data: 'cmd_yesterday' }
+            ],
+            [
+              { text: '📊 Live Status', callback_data: 'cmd_status' },
+              { text: '📈 Growth Stats', callback_data: 'cmd_stats' }
+            ],
+            [
+              { text: '🆔 My ID & Perms', callback_data: 'cmd_myid' },
+              { text: '🏓 Ping Bot', callback_data: 'cmd_ping' }
+            ]
+          ]
+        } : {
+          inline_keyboard: [
+            [
+              { text: '🟢 Open Group', callback_data: 'cmd_open' },
+              { text: '🔴 Close Group', callback_data: 'cmd_close' }
+            ],
+            [
+              { text: '📅 Today Stats', callback_data: 'cmd_today' },
+              { text: '⏮️ Yesterday Stats', callback_data: 'cmd_yesterday' }
+            ],
+            [
+              { text: '📊 Group Status', callback_data: 'cmd_status' },
+              { text: '⏳ Pending Requests', callback_data: 'cmd_pending' }
+            ],
+            [
+              { text: '👥 Bot Admins List', callback_data: 'cmd_admins' },
+              { text: '➕ Add Bot Admin', callback_data: 'cmd_addadmin_info' }
+            ],
+            [
+              { text: '📢 Broadcast Guide', callback_data: 'cmd_broadcast_guide' },
+              { text: '🆔 My ID Info', callback_data: 'cmd_myid' }
+            ],
+            [
+              { text: '🔄 Refresh Menu', callback_data: 'cmd_refresh_menu' }
+            ]
+          ]
+        };
+
+        if (messageId) {
+          await this.editMessageText(chatId, messageId, menuMsg, { parse_mode: 'Markdown', reply_markup: inlineMarkup });
+        } else {
+          await this.sendMessage(chatId, menuMsg, { parse_mode: 'Markdown', reply_markup: inlineMarkup });
+        }
       }
     }
   }
@@ -1288,7 +2066,7 @@ export class TelegramService {
       const res = await this.callTelegramApi('getUpdates', {
         offset: this.lastUpdateId + 1,
         timeout: 10,
-        allowed_updates: ['chat_join_request', 'chat_member', 'message'],
+        allowed_updates: ['chat_join_request', 'chat_member', 'message', 'callback_query'],
       });
 
       if (!res.ok) {
